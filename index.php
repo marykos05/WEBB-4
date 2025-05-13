@@ -5,13 +5,6 @@ header('Content-Type: text/html; charset=UTF-8');
 session_set_cookie_params(3600);
 session_start();
 
-// Очистка сообщений об ошибках после их отображения
-if (!empty($_SESSION['formErrors'])) {
-    unset($_SESSION['formErrors']);
-}
-if (!empty($_SESSION['fieldErrors'])) {
-    unset($_SESSION['fieldErrors']);
-}
 
 // Функция для получения значения поля.  Сначала проверяет сессию, потом куки.
 function getFieldValue($fieldName) {
@@ -33,9 +26,12 @@ function getFieldValue($fieldName) {
 
 function getCheckboxValues($fieldName) {
   // Сначала проверяем сессию
-  if (isset($_SESSION['oldValues'][$fieldName]) && is_array($_SESSION['oldValues'][$fieldName])) {
+  //PRINT_R($_SESSION['oldValues']);
+if (isset($_SESSION['oldValues'][$fieldName]) && is_array($_SESSION['oldValues'][$fieldName])) {
       return $_SESSION['oldValues'][$fieldName];
   }
+
+  //PRINT_R($_COOKIE['form_data']);
 
   // Если в сессии нет, проверяем куки
   if (isset($_COOKIE['form_data'])) {
@@ -55,8 +51,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $errors = false;
     $formErrors = [];
     $fieldErrors = [];
+
+    //print_r($_SESSION);
+    //die();
     
-// Валидация ФИО (теперь точно не пропустит цифры)
+// Валидация ФИО 
 if (empty($_POST['fio'])) {
     $fieldErrors['fio'] = 'Поле ФИО обязательно для заполнения.';
     $errors = true;
@@ -102,7 +101,7 @@ if (empty($_POST['tel'])) {
         $errors = true;
     }
     
-// Валидация даты рождения (полная проверка)
+// Валидация даты рождения 
 if (empty($_POST['date'])) {
     $fieldErrors['date'] = 'Поле даты рождения обязательно для заполнения.';
     $errors = true;
@@ -139,7 +138,7 @@ if (empty($_POST['date'])) {
 }
     
     // Валидация пола
-    if (empty($_POST['gender']) || !in_array($_POST['gender'], ['male', 'female'])) {
+    if (empty($_POST['gender']) || !in_array($_POST['gender'], ['Мужской', 'Женский'])) {
         $fieldErrors['gender'] = 'Пожалуйста, выберите пол.';
         $errors = true;
     }
@@ -149,9 +148,9 @@ if (empty($_POST['date'])) {
         $fieldErrors['plang'] = 'Пожалуйста, выберите хотя бы один язык программирования.';
         $errors = true;
     } else {
-        $allowedLanguages = ['Pascal', 'C', 'C++', 'JavaScript', 'PHP', 'Haskell', 'Clojure', 'Prolog', 'Scala'];
+        //$allowedLanguages = ['Pascal', 'C', 'C++', 'JavaScript', 'PHP', 'Haskell', 'Clojure', 'Prolog', 'Scala'];
         foreach ($_POST['plang'] as $lang) {
-            if (!in_array($lang, $allowedLanguages)) {
+            if (!($lang > 0 && $lang <= 12)) {
                 $fieldErrors['plang'] = 'Выбран недопустимый язык программирования.';
                 $errors = true;
                 break;
@@ -170,13 +169,13 @@ if (empty($_POST['date'])) {
     
     // Валидация чекбокса
     if (empty($_POST['check'])) {
-        $fieldErrors['check'] = 'Необходимо подтвердить ознакомление с контрактом.';
+        $fieldErrors['check'] = 'Необходимо подтвердить согласие на обработку персональных данных.';
         $errors = true;
     }
     
     // Если есть ошибки, сохраняем их в сессию и возвращаем на форму
     if ($errors) {
-        $_SESSION['formErrors'] = ['Пожалуйста, исправьте указанные ошибки.'];
+        $_SESSION['formErrors'] = $fieldErrors;//['Пожалуйста, исправьте указанные ошибки.'];
         $_SESSION['fieldErrors'] = $fieldErrors;
         $_SESSION['oldValues'] = $_POST;
         
@@ -185,44 +184,24 @@ if (empty($_POST['date'])) {
     }
     
     // Если ошибок нет, сохраняем данные в БД и куки
-    $user = 'u69186';
-    $pass = '8849997';
-    $dbname = 'u69186';
     
-    try {
-        $db = new PDO("mysql:host=localhost;dbname=$dbname", $user, $pass, [
-            PDO::ATTR_PERSISTENT => true,
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-        ]);
-        
-        // Вставка основных данных
-        $stmt = $db->prepare("INSERT INTO applications (fio, tel, email, birth_date, gender, bio) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([
-            $_POST['fio'],
-            $_POST['tel'],
-            $_POST['email'],
-            $_POST['date'],
-            $_POST['gender'],
-            $_POST['bio']
-        ]);
-        
-        $applicationId = $db->lastInsertId();
-        
-        // Вставка языков программирования
-        $stmt = $db->prepare("INSERT INTO application_languages (application_id, language_id) VALUES (?, ?)");
-        foreach ($_POST['plang'] as $language) {
-            $langStmt = $db->prepare("SELECT id FROM programming_languages WHERE name = ?");
-            $langStmt->execute([$language]);
-            $langId = $langStmt->fetchColumn();
-            
-            if (!$langId) {
-                $langStmt = $db->prepare("INSERT INTO programming_languages (name) VALUES (?)");
-                $langStmt->execute([$language]);
-                $langId = $db->lastInsertId();
-            }
-            
-            $stmt->execute([$applicationId, $langId]);
-        }
+    $user = 'u69186'; // Заменить на ваш логин uXXXXX
+  $pass = '8849997'; // Заменить на пароль
+  $db = new PDO('mysql:host=localhost;dbname=u69186', $user, $pass,
+    [PDO::ATTR_PERSISTENT => true, PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]); // Заменить test на имя БД, совпадает с логином uXXXXX
+  
+  // Подготовленный запрос. Не именованные метки.
+  try {
+    $stmt = $db->prepare("INSERT INTO application ( fio, phone, email, birthdate, gender, biography, contract_accepted ) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    $stmt->execute([$_POST['fio'], $_POST['tel'], $_POST['email'], $_POST['date'], $_POST['gender'], $_POST['bio'], $_POST['check'] ]);
+
+    $new_id = $db->lastInsertId();
+
+    foreach ($_POST['plang'] as $language) {
+      $stmt = $db->prepare("INSERT INTO application_programming_language ( application_id, programming_language_id ) VALUES (?, ?)");
+    $stmt->execute([$new_id, $language]);
+    }
+  
         
         // Сохраняем данные в куки на 1 год
         $formData = [
@@ -256,6 +235,20 @@ $dateValue = getFieldValue('date');
 $genderValue = getFieldValue('gender');
 $bioValue = getFieldValue('bio');
 $plangValues = getCheckboxValues('plang');
+
+$fieldErrors = (!empty($_SESSION['fieldErrors']))?$_SESSION['fieldErrors']:[];
+$formErrors = (!empty($_SESSION['formErrors']))?$_SESSION['formErrors']:[];
+
+//print_r($_SESSION);
+
+
+// Очистка сообщений об ошибках после их отображения
+if (!empty($_SESSION['formErrors'])) {
+    unset($_SESSION['formErrors']);
+}
+if (!empty($_SESSION['fieldErrors'])) {
+    unset($_SESSION['fieldErrors']);
+}
 
 ?>
 <!DOCTYPE html>
@@ -330,13 +323,13 @@ $plangValues = getCheckboxValues('plang');
                 <label>Пол:</label>
                 <div class="gender-container">
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" name="gender" id="radio-male" value="male" required
-                            <?php echo (getFieldValue('gender') == 'male') ? 'checked' : ''; ?>>
+                        <input class="form-check-input" type="radio" name="gender" id="radio-male" value="Мужской" required
+                            <?php echo (getFieldValue('gender') == 'Мужской') ? 'checked' : ''; ?>>
                         <label class="form-check-label" for="radio-male">Мужской</label>
                     </div>
                     <div class="form-check">
-                        <input class="form-check-input" type="radio" name="gender" id="radio-female" value="female" required
-                            <?php echo (getFieldValue('gender') == 'female') ? 'checked' : ''; ?>>
+                        <input class="form-check-input" type="radio" name="gender" id="radio-female" value="Женский" required
+                            <?php echo (getFieldValue('gender') == 'Женский') ? 'checked' : ''; ?>>
                         <label class="form-check-label" for="radio-female">Женский</label>
                     </div>
                 </div>
@@ -350,11 +343,11 @@ $plangValues = getCheckboxValues('plang');
                 <select class="form-control <?php echo !empty($fieldErrors['plang']) ? 'error-field' : ''; ?>" 
                         name="plang[]" id="plang" multiple required>
                     <?php
-                    $languages = ['Pascal', 'C', 'C++', 'JavaScript', 'PHP', 'Haskell', 'Clojure', 'Prolog', 'Scala'];
+                    $languages = ['Pascal', 'C', 'C++', 'JavaScript', 'PHP', 'Python','Java','Haskell', 'Clojure', 'Prolog', 'Scala','Go'];
                     $plangValues = getCheckboxValues('plang');
-                    foreach ($languages as $lang) {
-                        $selected = (in_array($lang, $plangValues)) ? 'selected' : '';
-                        echo "<option value=\"$lang\" $selected>$lang</option>";
+                    foreach ($languages as $key=>$lang) {
+                        $selected = (in_array($key+1, $plangValues)) ? 'selected' : '';
+                        echo "<option value=\"".($key+1)."\" $selected>$lang</option>";
                     }
                     ?>
                 </select>
@@ -375,7 +368,7 @@ $plangValues = getCheckboxValues('plang');
             </div>
             
             <div>
-                <input type="checkbox" class="form-check-input" name="check" id="check" required
+                <input type="checkbox" class="form-check-input" name="check" id="check" value="1"
                     <?php echo (!empty($plangValues)) ? 'checked' : ''; ?>>
                 <label class="form-check-label" for="check">Согласие на обработку персональных данных</label>
                 <?php if (!empty($fieldErrors['check'])): ?>
